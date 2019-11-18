@@ -1,0 +1,412 @@
+---
+layout: post
+title: Weekend R Project - Flixbus' Stops in Switzerland
+linktormd: true
+leafletmap: true
+always_allow_html: yes
+output: github_document
+tags: [webscraping, WEP, project, blog, leaflet, map, spatial, R]
+date: 2019-09-07
+---
+
+Having been avid users of Flixbus for three years now, 
+I and my wife know very well the importance of knowing 
+*where the Flixbus stop* of our destination is. 
+
+And not only for Flixbus, but also for other modes of 
+mass transportations, such as train, tram, or subways. 
+
+Traditionally, before departing for traveling using Flixbus,
+we always gathered all the addresses of the bus stops that 
+we're going to go to. And we always saved them *offline*, 
+printed them even, for the rare cases 
+where our smartphones are dead and we're without any 
+charging stations nearby, so that in those situations 
+we would always still be able to ask people around us 
+on directions by showing them the printed addresses of 
+those bus stops.
+
+So how do we obtain those informations, usually? 
+Well, normally we visited the Flixbus website 
+and looked up the addresses for each 
+cities that we're going to visit and copy-pasted them 
+into a Word document. However, this week-end I've got 
+an idea to try to do this little project, where we 
+would scrape these data online using R and 
+`rvest` package, and then visualizing their addresses 
+in map using OpenStreetMap, accessible through 
+`tmaptools` package. 
+
+Further, admittedly, I've never used OpenStreetMap 
+for geocoding before, so I think it could also a good case study 
+to check its capability.
+
+So, in short:
+
+  - in this project I used the web-scraping package of R, `rvest`, to
+    obtain the addresses of Flixbus’ stops in *Switzerland*. 
+    The reason why we chose this country is because
+    we’ve just finished our summer road trip in that country 
+    (more on that later!)
+
+  - afterwards, I used `tmaptools` package to geocode those address
+    using OSM and obtaining their coordinates, and
+
+  - finally, using those coordinates, I mark their locations on an
+    interactive map using `leaflet` package.
+
+# Step 1: Obtaining the Xpaths from the Flixbus' Website
+
+Firstly I’d like to say one thing about Flixbus' website: I love it. 
+It contains pretty much every information that I need about routes, bus
+stops, schedules, etc. It is also very consistent, with each country
+page containing the list of cities that they serve, and each city page
+containing the address(es) of the bus stops in that city.
+
+Scraping the information from their website thus proven very simple. The
+first thing I did was visiting their web page for [Switzerland
+destinations](https://global.flixbus.com/bus/switzerland).
+
+Scrolling down a little bit, you’ll see the list of cities served by the
+FlixBus. Using a Chrome extension called [Selector
+Gadget](https://chrome.google.com/webstore/search/selector%20gadget), I
+selected the cities and obtained their xpath.
+
+Afterwards, I navigated to one of the cities listed and copied the xpath
+of their bus stop address.
+
+And that’s Step 1 finished.
+
+# Step 2: Scraping the Website
+
+Before doing the heavy work, I’d like to re-state some rules that I have
+regarding web scraping:
+
+  - do not encumber their server too much; put adequate *intervals* in
+    between requests,
+
+  - the script that need to be reproducible,
+
+  - the data need to be readable.
+
+Among those things, I think the first one if very important, especially
+if we’re going to scrape lots of informations from different pages just
+like what I did here. Anyway, first thing first, let’s load the
+necessary libraries:
+
+```{r}
+library(rvest)         # For web scraping
+library(leaflet)       # For visualizing the map
+library(dplyr)         # For the syntax
+library(data.table)    # For data wrangling
+library(tmaptools)     # For the geocoding
+library(kableExtra)    # For visualizing tables in HTML
+```
+
+Now, let’s start the scraping:
+
+## Scraping Part 1: List of Destinations
+
+Firstly, we need to get a list of destinations or cities served by the
+Flixbus in Switzerland and their respective pages with the bus stop
+addresses inside. So, we do this by this script:
+
+```{r}
+#Reading the website
+webpage <- read_html("https://global.flixbus.com/bus/switzerland")
+
+#Obtaining the destinations
+## Destination names
+dest.names <- webpage %>% 
+  html_nodes(xpath = "//div[@class='hubpage-col col-md-3 col-sm-3']") %>% 
+  html_nodes("li") %>% 
+  html_text(trim=TRUE)
+
+## Destination links
+dest.links <- webpage %>% 
+  html_nodes(xpath = "//div[@class='hubpage-col col-md-3 col-sm-3']") %>% 
+  html_nodes("li") %>% 
+  html_nodes("a") %>% 
+  html_attr("href")
+```
+
+To make those informations more readable, we put them in a dataframe and
+visualized them using `kable()` function as follows:
+
+```{r}
+#Making a dataframe containing the names and links of the destinations
+dest.table <- data.frame(dest.names, dest.links) 
+names(dest.table) <- c("Cities","Pages")
+
+#Preview the table
+kable(dest.table, 
+      caption = "List of Switzerland Cities connected by Flixbus") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(height = "400px")
+```
+
+And that’s Scraping Part 1 finished.
+
+## Scraping Part 2: Addresses of the Bus Stops
+
+Now that we’ve had all the names and links for each destinations, the
+next thing we had to do is obtaining the bus stops’ addresses.
+
+Again, I’d like to tell you again that the FlixBus website is honestly,
+in my humble opinion, one of the most well-made, well-crafted, and
+well-written bus websites that I’ve ever found. Every city has its own
+page. Each of them has the same format and structure. The consistency is
+very good. So without further ado, here is the script that I use to
+scrape the addresses from their pages. Notice I put ‘sleep time’ in
+between scraping each pages so that I won’t encumber the server too
+much:
+
+```{r}
+#Make empty list
+dat.cities <- list()
+
+#Scrape from each city
+for (city in dest.table$Cities) {
+  
+  dest.tmp <- dest.table[dest.table$Cities==city,]
+  
+  #Obtain the web of a city
+  wp.tmp <- read_html(as.character(dest.tmp$Pages))
+  
+  lst.tmp <- wp.tmp %>% 
+    html_nodes("address.bus-stop-overview__stop__orig")
+  
+  for (i in 1:length(lst.tmp)) {
+  
+    ads.tmp <- lst.tmp[i] %>% 
+      html_nodes("span") %>% 
+      html_text(trim=TRUE) %>% 
+      gsub('\"','', .)
+  
+    dat.tmp <- data.frame(city,paste(ads.tmp,collapse = ", "))
+  
+    names(dat.tmp) <- c("Cities","Address")
+  
+    if(i == 1){
+    
+      dat.cty <- dat.tmp
+  
+      } else {
+    
+        dat.cty <- rbind(dat.cty,dat.tmp)
+  
+        }
+
+  }
+  
+  dat.cities[[city]] <- dat.cty
+  
+  Sys.sleep(3) #Each time, we give the website a "rest time" for three seconds
+
+}
+```
+
+And that’s it, we have all the addresses of all the bus stops. To make
+it easier to read, let’s convert the list of addresses above into a data
+frame:
+
+```{r}
+#Convert the list into a dataframe
+dest.addresses <- rbindlist(dat.cities)
+```
+
+Now, to make it *even easier* to read, let’s merge the two data frames
+(`dest.addresses` and `dest.table`) into ***one*** data frame based on
+the column `Cities`.
+
+```{r}
+# Merging
+dest.results <- merge(dest.table, dest.addresses, by = "Cities")
+
+# Preview the results
+kable(dest.results, 
+      caption = "List of cities and their bus stops") %>%
+  kable_styling(bootstrap_options = c("striped", "hover")) %>%
+  scroll_box(height = "400px")
+```
+
+Finally, let’s just save these informations into a CSV file so we can
+inspect them, and even print them, so we can consult it even without
+internet connection:
+
+```{r}
+write.csv(dest.results, 
+          "switzerland_destinations_addresses.csv")
+```
+
+And that’s the scraping parts, finished\!
+
+# Step 3: Geocoding
+
+Now that we have obtained their addresses, it’s time to find their
+coordinates. To do this, we used `tmaptools`’s `geocode_OSM` function.
+
+Firstly, let’s make three additional columns in the `dest.results` data
+frame for the longitudinal and latitude of each street addresses *and*
+also for a note to let us know if the geocoding is successful or not:
+
+```{r}
+dest.results$Lon <- NA
+dest.results$Lat <- NA
+dest.results$Note <- NA
+```
+
+Then, let’s loop over each rows of the `dest.results` data frame to get
+the coordinates of each addresses *and* put them directly into the `Lon`
+and `Lat` column:
+
+```{r}
+for (i in 1:nrow(dest.results)) {
+  
+  tryCatch({ # We put this here so that, if OSM failed in finding the 
+             # coordinates, it will not stop the loop
+    
+    res_geo <- geocode_OSM(as.character(dest.results$Address[i]),
+            as.data.frame = TRUE)
+    
+    dest.results$Lon[i] <- res_geo$lon
+    
+    dest.results$Lat[i] <- res_geo$lat
+    
+  }, warning=function(w){Sys.sleep(0)}) # Basically, skip
+  
+  Sys.sleep(3) #Each time, we give the OSM a "rest time" of three seconds
+  
+}
+```
+
+We found that, apparently, there are some addresses that we couldn’t
+find using OSM. That’s unfortunate, but that also shows us the
+capability of OSM, which is one of the objectives that we wanted from
+this project.
+
+So let’s put a message on those addresses that we couldn’t find so that
+it is clear which one has the exact coordinates and which one doesn’t.
+
+```{r}
+for (i in 1:nrow(dest.results)) {
+  
+  if(is.na(dest.results$Lon[i]) | is.na(dest.results$Lat[i])){
+    dest.results$Note[i] <- "Coordinates not found on OSM"
+  }else{
+    dest.results$Note[i] <- "Coordinates found"
+  }
+  
+}
+```
+
+And finally, let’s calculate the percentage of places found by OSM and
+the percentage of those who wasn’t
+found:
+
+```{r}
+percent_found <- nrow(dest.results[dest.results$Note == "Coordinates found",])/nrow(dest.results)*100
+
+percent_notfound <- nrow(dest.results[dest.results$Note == "Coordinates not found on OSM",])/nrow(dest.results)*100
+
+pie(c(percent_found,percent_notfound), 
+    labels = c(paste("Found (", percent_found, "%)", sep = ""),
+               paste("Not found (", percent_notfound, "%)", sep = "")), 
+    main="Percentage of Bus Stops Found and Not Found by OSM")
+```
+
+# Step 4: Visualizing on Map
+
+We now have the addresses and the coordinates for, well, *most* of the
+bus stop. Now, let’s put them on the map using `leaflet` package.
+
+To do that, firstly we need to frame them in a larger map, which in this
+case, is the map of Switzerland:
+
+```{r}
+geoswitzerland <- geocode_OSM("Switzerland",
+                         as.data.frame = TRUE)
+
+mapres <- leaflet(width = "100%")
+
+mapres <- addTiles(mapres)
+
+mapres <- fitBounds(mapres, lng1 = geoswitzerland$lon_min, lng2 = geoswitzerland$lon_max,
+            lat1 = geoswitzerland$lat_min, lat2 = geoswitzerland$lat_max)
+```
+
+Afterwards, we put the locations using markers on this map by looping
+over each found coordinates:
+
+```{r}
+for (i in 1:nrow(dest.results)) {
+  if(dest.results$Note[i]=="Coordinates found"){
+    mapres <- addMarkers(mapres,
+                       lng = as.numeric(dest.results$Lon[i]),
+                       lat = as.numeric(dest.results$Lat[i]),
+                       popup = as.character(dest.results$Address[i]))
+  }
+}
+
+# Show the map
+mapres
+```
+
+And that’s the visualization, finished.
+
+# Final Thoughts
+
+So those are the results that I have obtained through these web-scraping
+scripts that I made. We’ve got ourselves the list of the cities
+connected by the Flixbus network in Switzerland and, what’s more, we
+know the addresses of Flixbus stops in those cities. We’ve succeeded in
+saving them and exporting them into a text file, which is very good, and
+if you’re a frequent traveler (or backpacker, like I used to be), I
+think we can always appreciate having those addresses handly, offline,
+and ready to be printed.
+
+Then came the part where we tried to search those addresses using OSM,
+wherein we found out that not all of those addresses could be found by
+OSM. Sure, you can use Google Maps instead of OSM for geocoding, but the
+reason why I chose to use OSM here is because of their openness and
+freeness. Unlike Google Maps, which now limits the number of requests
+(of course, any internet map service provider has the right to do that),
+and who asks us to create a “billing” account to use their API, OSM
+allows people like me–who really likes having a reproducible,
+easy-to-use right of the bat scripts (really, you can download this R
+markdown file and run it by yourself through your Rstudio and I am quite
+certain that you’ll have the same results)–to do geocoding openly and
+freely.
+
+If you’re someone like me, who is a proponent of open access to data, I
+think you’re going to agree that having a free, accurate geographic
+dataset is more important than ever now, especially with the rise of
+self-driving cars and services. And if you’re still unconvinced about
+the importance of OSM, I’d like to suggest to you to read
+[this](https://blog.emacsen.net/blog/2014/01/04/why-the-world-needs-openstreetmap/)
+blog post and
+[this](https://www.linuxjournal.com/content/openstreetmap-should-be-priority-open-source-community)
+article. *Those things being said*, we can’t deny that OSM itself still
+needs improvement, [especially in
+geocoding](https://blog.emacsen.net/blog/2018/02/16/osm-is-in-trouble/).
+That doesn’t mean we should stop using it, it just means that OSM is
+still developing and that we can contribute to that.
+
+Finally, I’d just like to point out that the FlixBus website themselves
+actually contain the coordinates of **all the addresses** of their
+FlixBus stops. You can check it out. But the objective of this project
+is, again, is not to really obtain all those coordinates, it is to see
+the capability of OSM for geocoding of these addresses. And in my
+opinion, OSM is already very good for that, although they could improve,
+certainly. And at the end, the most impotant thing is, perhaps: we have
+obtained the list of all FlixBus stops addresses in Switzerland, and it
+should be very handy to have, especially in conditions where we are
+traveling without a consistent internet access.
+
+# Closing
+
+Any questions? Thoughts? Perhaps you’ve found some errors in my codes?
+Feel free to hit me at my
+[LinkedIn](https://www.linkedin.com/in/alkadri) or
+[email](mailto:ahmad.alkadri@outlook.com). God knows I still need to
+learn a lot. Always love to discuss\!

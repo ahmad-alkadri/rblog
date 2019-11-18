@@ -1,0 +1,2045 @@
+<script src="2019-09-07-wp-scraping-flixbus-switzerland_files/kePrint/kePrint.js"></script>
+<script src="2019-09-07-wp-scraping-flixbus-switzerland_files/htmlwidgets/htmlwidgets.js"></script>
+<script src="2019-09-07-wp-scraping-flixbus-switzerland_files/jquery/jquery.min.js"></script>
+<link href="2019-09-07-wp-scraping-flixbus-switzerland_files/leaflet/leaflet.css" rel="stylesheet" />
+<script src="2019-09-07-wp-scraping-flixbus-switzerland_files/leaflet/leaflet.js"></script>
+<link href="2019-09-07-wp-scraping-flixbus-switzerland_files/leafletfix/leafletfix.css" rel="stylesheet" />
+<script src="2019-09-07-wp-scraping-flixbus-switzerland_files/Proj4Leaflet/proj4-compressed.js"></script>
+<script src="2019-09-07-wp-scraping-flixbus-switzerland_files/Proj4Leaflet/proj4leaflet.js"></script>
+<link href="2019-09-07-wp-scraping-flixbus-switzerland_files/rstudio_leaflet/rstudio_leaflet.css" rel="stylesheet" />
+<script src="2019-09-07-wp-scraping-flixbus-switzerland_files/leaflet-binding/leaflet.js"></script>
+
+
+<p>Having been avid users of Flixbus for three years now,
+I and my wife know very well the importance of knowing
+<em>where the Flixbus stop</em> of our destination is.</p>
+<p>And not only for Flixbus, but also for other modes of
+mass transportations, such as train, tram, or subways.</p>
+<p>Traditionally, before departing for traveling using Flixbus,
+we always gathered all the addresses of the bus stops that
+we’re going to go to. And we always saved them <em>offline</em>,
+printed them even, for the rare cases
+where our smartphones are dead and we’re without any
+charging stations nearby, so that in those situations
+we would always still be able to ask people around us
+on directions by showing them the printed addresses of
+those bus stops.</p>
+<p>So how do we obtain those informations, usually?
+Well, normally we visited the Flixbus website
+and looked up the addresses for each
+cities that we’re going to visit and copy-pasted them
+into a Word document. However, this week-end I’ve got
+an idea to try to do this little project, where we
+would scrape these data online using R and
+<code>rvest</code> package, and then visualizing their addresses
+in map using OpenStreetMap, accessible through
+<code>tmaptools</code> package.</p>
+<p>Further, admittedly, I’ve never used OpenStreetMap
+for geocoding before, so I think it could also a good case study
+to check its capability.</p>
+<p>So, in short:</p>
+<ul>
+<li><p>in this project I used the web-scraping package of R, <code>rvest</code>, to
+obtain the addresses of Flixbus’ stops in <em>Switzerland</em>.
+The reason why we chose this country is because
+we’ve just finished our summer road trip in that country
+(more on that later!)</p></li>
+<li><p>afterwards, I used <code>tmaptools</code> package to geocode those address
+using OSM and obtaining their coordinates, and</p></li>
+<li><p>finally, using those coordinates, I mark their locations on an
+interactive map using <code>leaflet</code> package.</p></li>
+</ul>
+<div id="step-1-obtaining-the-xpaths-from-the-flixbus-website" class="section level1">
+<h1>Step 1: Obtaining the Xpaths from the Flixbus’ Website</h1>
+<p>Firstly I’d like to say one thing about Flixbus’ website: I love it.
+It contains pretty much every information that I need about routes, bus
+stops, schedules, etc. It is also very consistent, with each country
+page containing the list of cities that they serve, and each city page
+containing the address(es) of the bus stops in that city.</p>
+<p>Scraping the information from their website thus proven very simple. The
+first thing I did was visiting their web page for <a href="https://global.flixbus.com/bus/switzerland">Switzerland
+destinations</a>:</p>
+<p><img src="https://github.com/ahmad-alkadri/ahmad-alkadri.github.io/blob/master/_posts/2019-09-07-wp-scraping-flixbus-switzerland_files/2019-09-07-wp-scraping-flixbus-switzerland_webpage_front.png?raw=true" /></p>
+<p>Scrolling down a little bit, you’ll see the list of cities served by the
+FlixBus. Using a Chrome extension called <a href="https://chrome.google.com/webstore/search/selector%20gadget">Selector
+Gadget</a>, I
+selected the cities and obtained their xpath:</p>
+<p><img src="https://github.com/ahmad-alkadri/ahmad-alkadri.github.io/blob/master/_posts/2019-09-07-wp-scraping-flixbus-switzerland_files/2019-09-07-wp-scraping-flixbus-switzerland_webpage_xpaths.png?raw=true" /></p>
+<p>Afterwards, I navigated to one of the cities listed and copied the xpath
+of their bus stop address:</p>
+<p><img src="https://github.com/ahmad-alkadri/ahmad-alkadri.github.io/blob/master/_posts/2019-09-07-wp-scraping-flixbus-switzerland_files/2019-09-07-wp-scraping-flixbus-switzerland_webpage_cities.png?raw=true" /></p>
+<p>And that’s Step 1 finished.</p>
+</div>
+<div id="step-2-scraping-the-website" class="section level1">
+<h1>Step 2: Scraping the Website</h1>
+<p>Before doing the heavy work, I’d like to re-state some rules that I have
+regarding web scraping:</p>
+<ul>
+<li><p>do not encumber their server too much; put adequate <em>intervals</em> in
+between requests,</p></li>
+<li><p>the script that need to be reproducible,</p></li>
+<li><p>the data need to be readable.</p></li>
+</ul>
+<p>Among those things, I think the first one if very important, especially
+if we’re going to scrape lots of informations from different pages just
+like what I did here. Anyway, first thing first, let’s load the
+necessary libraries:</p>
+<pre class="r"><code>library(rvest)         # For web scraping</code></pre>
+<pre><code>## Loading required package: xml2</code></pre>
+<pre class="r"><code>library(leaflet)       # For visualizing the map
+library(dplyr)         # For the syntax</code></pre>
+<pre><code>## 
+## Attaching package: &#39;dplyr&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:stats&#39;:
+## 
+##     filter, lag</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     intersect, setdiff, setequal, union</code></pre>
+<pre class="r"><code>library(data.table)    # For data wrangling</code></pre>
+<pre><code>## 
+## Attaching package: &#39;data.table&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:dplyr&#39;:
+## 
+##     between, first, last</code></pre>
+<pre class="r"><code>library(tmaptools)     # For the geocoding
+library(kableExtra)    # For visualizing tables in HTML</code></pre>
+<pre><code>## 
+## Attaching package: &#39;kableExtra&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
+## 
+##     group_rows</code></pre>
+<p>Now, let’s start the scraping:</p>
+<div id="scraping-part-1-list-of-destinations" class="section level2">
+<h2>Scraping Part 1: List of Destinations</h2>
+<p>Firstly, we need to get a list of destinations or cities served by the
+Flixbus in Switzerland and their respective pages with the bus stop
+addresses inside. So, we do this by this script:</p>
+<pre class="r"><code>#Reading the website
+webpage &lt;- read_html(&quot;https://global.flixbus.com/bus/switzerland&quot;)
+
+#Obtaining the destinations
+## Destination names
+dest.names &lt;- webpage %&gt;% 
+  html_nodes(xpath = &quot;//div[@class=&#39;hubpage-col col-md-3 col-sm-3&#39;]&quot;) %&gt;% 
+  html_nodes(&quot;li&quot;) %&gt;% 
+  html_text(trim=TRUE)
+
+## Destination links
+dest.links &lt;- webpage %&gt;% 
+  html_nodes(xpath = &quot;//div[@class=&#39;hubpage-col col-md-3 col-sm-3&#39;]&quot;) %&gt;% 
+  html_nodes(&quot;li&quot;) %&gt;% 
+  html_nodes(&quot;a&quot;) %&gt;% 
+  html_attr(&quot;href&quot;)</code></pre>
+<p>To make those informations more readable, we put them in a dataframe and
+visualized them using <code>kable()</code> function as follows:</p>
+<pre class="r"><code>#Making a dataframe containing the names and links of the destinations
+dest.table &lt;- data.frame(dest.names, dest.links) 
+names(dest.table) &lt;- c(&quot;Cities&quot;,&quot;Pages&quot;)
+
+#Preview the table
+kable(dest.table, 
+      caption = &quot;List of Switzerland Cities connected by Flixbus&quot;) %&gt;%
+  kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;)) %&gt;%
+  scroll_box(height = &quot;400px&quot;)</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:400px; ">
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<caption>
+<span id="tab:unnamed-chunk-3">Table 1: </span>List of Switzerland Cities connected by Flixbus
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Cities
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Pages
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Airolo
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/airolo" class="uri">https://global.flixbus.com/bus/airolo</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Baden
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/baden" class="uri">https://global.flixbus.com/bus/baden</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Basel
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/basel-weil-am-rhein" class="uri">https://global.flixbus.com/bus/basel-weil-am-rhein</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Basel EuroAirport (CH)
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/basel-euroairport-ch" class="uri">https://global.flixbus.com/bus/basel-euroairport-ch</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Bellinzona
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/bellinzona" class="uri">https://global.flixbus.com/bus/bellinzona</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Bern
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/bern" class="uri">https://global.flixbus.com/bus/bern</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Biasca
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/biasca" class="uri">https://global.flixbus.com/bus/biasca</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Biel
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/biel" class="uri">https://global.flixbus.com/bus/biel</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chur
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/chur" class="uri">https://global.flixbus.com/bus/chur</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Flüelen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/fluelen" class="uri">https://global.flixbus.com/bus/fluelen</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Fribourg (Suisse)
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/fribourg" class="uri">https://global.flixbus.com/bus/fribourg</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Füllinsdorf
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/fullinsdorf" class="uri">https://global.flixbus.com/bus/fullinsdorf</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Geneva
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/geneva" class="uri">https://global.flixbus.com/bus/geneva</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Geneva Airport
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/geneva-airport" class="uri">https://global.flixbus.com/bus/geneva-airport</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Grindelwald
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/grindelwald" class="uri">https://global.flixbus.com/bus/grindelwald</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Göschenen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/goschenen" class="uri">https://global.flixbus.com/bus/goschenen</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Interlaken
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/interlaken" class="uri">https://global.flixbus.com/bus/interlaken</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Landquart
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/landquart" class="uri">https://global.flixbus.com/bus/landquart</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Lausanne
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/lausanne" class="uri">https://global.flixbus.com/bus/lausanne</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Lugano
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/lugano" class="uri">https://global.flixbus.com/bus/lugano</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Luzern
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/lucerne" class="uri">https://global.flixbus.com/bus/lucerne</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Martigny
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/martigny" class="uri">https://global.flixbus.com/bus/martigny</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Montreux
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/montreux" class="uri">https://global.flixbus.com/bus/montreux</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Neuchâtel (Switzerland)
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/neuchatel-switzerland" class="uri">https://global.flixbus.com/bus/neuchatel-switzerland</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Nyon
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/nyon" class="uri">https://global.flixbus.com/bus/nyon</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Olten
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/olten" class="uri">https://global.flixbus.com/bus/olten</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Schaffhausen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/schaffhausen" class="uri">https://global.flixbus.com/bus/schaffhausen</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Sion
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/sion" class="uri">https://global.flixbus.com/bus/sion</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Solothurn
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/solothurn" class="uri">https://global.flixbus.com/bus/solothurn</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Splügen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/splugen" class="uri">https://global.flixbus.com/bus/splugen</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+St. Gallen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/st-gallen" class="uri">https://global.flixbus.com/bus/st-gallen</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Stans
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/stans" class="uri">https://global.flixbus.com/bus/stans</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Sursee
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/sursee" class="uri">https://global.flixbus.com/bus/sursee</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Thun
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/thun" class="uri">https://global.flixbus.com/bus/thun</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Vevey
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/vevey" class="uri">https://global.flixbus.com/bus/vevey</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Winterthur
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/winterthur" class="uri">https://global.flixbus.com/bus/winterthur</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Yverdon les Bains
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/yverdon-les-bains" class="uri">https://global.flixbus.com/bus/yverdon-les-bains</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zurich
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/zurich" class="uri">https://global.flixbus.com/bus/zurich</a>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zurich Airport
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/zurich-airport" class="uri">https://global.flixbus.com/bus/zurich-airport</a>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:400px; ">
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<caption>
+<p>List of Switzerland Cities connected by
+Flixbus</p>
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+<p>Cities</p>
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+<p>Pages</p>
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+<p>Airolo</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/airolo" class="uri">https://global.flixbus.com/bus/airolo</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Baden</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/baden" class="uri">https://global.flixbus.com/bus/baden</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Basel</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/basel-weil-am-rhein" class="uri">https://global.flixbus.com/bus/basel-weil-am-rhein</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Basel EuroAirport (CH)</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/basel-euroairport-ch" class="uri">https://global.flixbus.com/bus/basel-euroairport-ch</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Bellinzona</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/bellinzona" class="uri">https://global.flixbus.com/bus/bellinzona</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Bern</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/bern" class="uri">https://global.flixbus.com/bus/bern</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Biasca</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/biasca" class="uri">https://global.flixbus.com/bus/biasca</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Biel</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/biel" class="uri">https://global.flixbus.com/bus/biel</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Bulle</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/bulle" class="uri">https://global.flixbus.com/bus/bulle</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Chur</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/chur" class="uri">https://global.flixbus.com/bus/chur</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Flüelen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/fluelen" class="uri">https://global.flixbus.com/bus/fluelen</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Fribourg (Suisse)</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/fribourg" class="uri">https://global.flixbus.com/bus/fribourg</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Füllinsdorf</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/fullinsdorf" class="uri">https://global.flixbus.com/bus/fullinsdorf</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Geneva</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/geneva" class="uri">https://global.flixbus.com/bus/geneva</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Geneva Airport</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/geneva-airport" class="uri">https://global.flixbus.com/bus/geneva-airport</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Grindelwald</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/grindelwald" class="uri">https://global.flixbus.com/bus/grindelwald</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Göschenen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/goschenen" class="uri">https://global.flixbus.com/bus/goschenen</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Horgen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/horgen" class="uri">https://global.flixbus.com/bus/horgen</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Interlaken</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/interlaken" class="uri">https://global.flixbus.com/bus/interlaken</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Landquart</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/landquart" class="uri">https://global.flixbus.com/bus/landquart</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Lausanne</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/lausanne" class="uri">https://global.flixbus.com/bus/lausanne</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Lugano</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/lugano" class="uri">https://global.flixbus.com/bus/lugano</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Luzern</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/lucerne" class="uri">https://global.flixbus.com/bus/lucerne</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Martigny</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/martigny" class="uri">https://global.flixbus.com/bus/martigny</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Mendrisio</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/mendrisio" class="uri">https://global.flixbus.com/bus/mendrisio</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Montreux</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/montreux" class="uri">https://global.flixbus.com/bus/montreux</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Neuchâtel (Switzerland)</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/neuchatel-switzerland" class="uri">https://global.flixbus.com/bus/neuchatel-switzerland</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Nyon</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/nyon" class="uri">https://global.flixbus.com/bus/nyon</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Olten</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/olten" class="uri">https://global.flixbus.com/bus/olten</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Schaffhausen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/schaffhausen" class="uri">https://global.flixbus.com/bus/schaffhausen</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Sion</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/sion" class="uri">https://global.flixbus.com/bus/sion</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Solothurn</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/solothurn" class="uri">https://global.flixbus.com/bus/solothurn</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Splügen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/splugen" class="uri">https://global.flixbus.com/bus/splugen</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>St. Gallen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/st-gallen" class="uri">https://global.flixbus.com/bus/st-gallen</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Stans</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/stans" class="uri">https://global.flixbus.com/bus/stans</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Sursee</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/sursee" class="uri">https://global.flixbus.com/bus/sursee</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Thun</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/thun" class="uri">https://global.flixbus.com/bus/thun</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Vevey</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/vevey" class="uri">https://global.flixbus.com/bus/vevey</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Winterthur</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/winterthur" class="uri">https://global.flixbus.com/bus/winterthur</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Yverdon les Bains</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/yverdon-les-bains" class="uri">https://global.flixbus.com/bus/yverdon-les-bains</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Zurich</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/zurich" class="uri">https://global.flixbus.com/bus/zurich</a></p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Zurich Airport</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/zurich-airport" class="uri">https://global.flixbus.com/bus/zurich-airport</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>And that’s Scraping Part 1 finished.</p>
+</div>
+<div id="scraping-part-2-addresses-of-the-bus-stops" class="section level2">
+<h2>Scraping Part 2: Addresses of the Bus Stops</h2>
+<p>Now that we’ve had all the names and links for each destinations, the
+next thing we had to do is obtaining the bus stops’ addresses.</p>
+<p>Again, I’d like to tell you again that the FlixBus website is honestly,
+in my humble opinion, one of the most well-made, well-crafted, and
+well-written bus websites that I’ve ever found. Every city has its own
+page. Each of them has the same format and structure. The consistency is
+very good. So without further ado, here is the script that I use to
+scrape the addresses from their pages. Notice I put ‘sleep time’ in
+between scraping each pages so that I won’t encumber the server too
+much:</p>
+<pre class="r"><code>#Make empty list
+dat.cities &lt;- list()
+
+#Scrape from each city
+for (city in dest.table$Cities) {
+  
+  dest.tmp &lt;- dest.table[dest.table$Cities==city,]
+  
+  #Obtain the web of a city
+  wp.tmp &lt;- read_html(as.character(dest.tmp$Pages))
+  
+  lst.tmp &lt;- wp.tmp %&gt;% 
+    html_nodes(&quot;address.bus-stop-overview__stop__orig&quot;)
+  
+  for (i in 1:length(lst.tmp)) {
+  
+    ads.tmp &lt;- lst.tmp[i] %&gt;% 
+      html_nodes(&quot;span&quot;) %&gt;% 
+      html_text(trim=TRUE) %&gt;% 
+      gsub(&#39;\&quot;&#39;,&#39;&#39;, .)
+  
+    dat.tmp &lt;- data.frame(city,paste(ads.tmp,collapse = &quot;, &quot;))
+  
+    names(dat.tmp) &lt;- c(&quot;Cities&quot;,&quot;Address&quot;)
+  
+    if(i == 1){
+    
+      dat.cty &lt;- dat.tmp
+  
+      } else {
+    
+        dat.cty &lt;- rbind(dat.cty,dat.tmp)
+  
+        }
+
+  }
+  
+  dat.cities[[city]] &lt;- dat.cty
+  
+  Sys.sleep(3) #Each time, we give the website a &quot;rest time&quot; for three seconds
+
+}</code></pre>
+<p>And that’s it, we have all the addresses of all the bus stops. To make
+it easier to read, let’s convert the list of addresses above into a data
+frame:</p>
+<pre class="r"><code>#Convert the list into a dataframe
+dest.addresses &lt;- rbindlist(dat.cities)</code></pre>
+<p>Now, to make it <em>even easier</em> to read, let’s merge the two data frames
+(<code>dest.addresses</code> and <code>dest.table</code>) into <strong><em>one</em></strong> data frame based on
+the column <code>Cities</code>.</p>
+<pre class="r"><code># Merging
+dest.results &lt;- merge(dest.table, dest.addresses, by = &quot;Cities&quot;)
+
+# Preview the results
+kable(dest.results, 
+      caption = &quot;List of cities and their bus stops&quot;) %&gt;%
+  kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;)) %&gt;%
+  scroll_box(height = &quot;400px&quot;)</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:400px; ">
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<caption>
+<span id="tab:unnamed-chunk-6">Table 2: </span>List of cities and their bus stops
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Cities
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Pages
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Address
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Airolo
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/airolo" class="uri">https://global.flixbus.com/bus/airolo</a>
+</td>
+<td style="text-align:left;">
+Via Fontana, 6780 Airolo, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Baden
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/baden" class="uri">https://global.flixbus.com/bus/baden</a>
+</td>
+<td style="text-align:left;">
+Brown Boveri Str. 16-20, 5400 Baden, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Basel
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/basel-weil-am-rhein" class="uri">https://global.flixbus.com/bus/basel-weil-am-rhein</a>
+</td>
+<td style="text-align:left;">
+Meret Oppenheim-Strasse, 4053 Basel, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Basel EuroAirport (CH)
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/basel-euroairport-ch" class="uri">https://global.flixbus.com/bus/basel-euroairport-ch</a>
+</td>
+<td style="text-align:left;">
+Flughafen Basel-Mulhouse, 4030 Basel EuroAirport (CH), Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Bellinzona
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/bellinzona" class="uri">https://global.flixbus.com/bus/bellinzona</a>
+</td>
+<td style="text-align:left;">
+Via Stazione, 6532 Bellinzona, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Bern
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/bern" class="uri">https://global.flixbus.com/bus/bern</a>
+</td>
+<td style="text-align:left;">
+Studerstrasse, 3012 Bern, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Biasca
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/biasca" class="uri">https://global.flixbus.com/bus/biasca</a>
+</td>
+<td style="text-align:left;">
+Via Generale Guisan 2, 6710 Biasca, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Biel
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/biel" class="uri">https://global.flixbus.com/bus/biel</a>
+</td>
+<td style="text-align:left;">
+Stadien/Stades, 2504 Biel, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Chur
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/chur" class="uri">https://global.flixbus.com/bus/chur</a>
+</td>
+<td style="text-align:left;">
+Gürtelstrasse 14, 7000 Chur, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Flüelen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/fluelen" class="uri">https://global.flixbus.com/bus/fluelen</a>
+</td>
+<td style="text-align:left;">
+Bahnhofstrasse, 6454 Flüelen, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Fribourg (Suisse)
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/fribourg" class="uri">https://global.flixbus.com/bus/fribourg</a>
+</td>
+<td style="text-align:left;">
+Chemin Saint-Léonard, 1700 Fribourg (Suisse), Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Fribourg (Suisse)
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/fribourg" class="uri">https://global.flixbus.com/bus/fribourg</a>
+</td>
+<td style="text-align:left;">
+Rue Louis-d’Affry 2, 1700 Fribourg (Suisse), Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Füllinsdorf
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/fullinsdorf" class="uri">https://global.flixbus.com/bus/fullinsdorf</a>
+</td>
+<td style="text-align:left;">
+Rheinstrasse 2, 4414 Füllinsdorf, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Geneva
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/geneva" class="uri">https://global.flixbus.com/bus/geneva</a>
+</td>
+<td style="text-align:left;">
+Place Dorcière, 1201 Geneva, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Geneva
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/geneva" class="uri">https://global.flixbus.com/bus/geneva</a>
+</td>
+<td style="text-align:left;">
+Place Martin Luther King, 74100 Geneva, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Geneva Airport
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/geneva-airport" class="uri">https://global.flixbus.com/bus/geneva-airport</a>
+</td>
+<td style="text-align:left;">
+Route de l’aéroport, 1215 Geneva Airport, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Göschenen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/goschenen" class="uri">https://global.flixbus.com/bus/goschenen</a>
+</td>
+<td style="text-align:left;">
+Bahnhofplatz, 6487 Göschenen, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Grindelwald
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/grindelwald" class="uri">https://global.flixbus.com/bus/grindelwald</a>
+</td>
+<td style="text-align:left;">
+Endweg, 3818 Grindelwald, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Interlaken
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/interlaken" class="uri">https://global.flixbus.com/bus/interlaken</a>
+</td>
+<td style="text-align:left;">
+Rugenparkstrasse, 3800 Interlaken, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Landquart
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/landquart" class="uri">https://global.flixbus.com/bus/landquart</a>
+</td>
+<td style="text-align:left;">
+Tardisstrasse 20, 7205 Landquart, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Lausanne
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/lausanne" class="uri">https://global.flixbus.com/bus/lausanne</a>
+</td>
+<td style="text-align:left;">
+Route des Plaines-du-Loup, 1018 Lausanne, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Lugano
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/lugano" class="uri">https://global.flixbus.com/bus/lugano</a>
+</td>
+<td style="text-align:left;">
+Via Giacomo E Filippo Ciani, 6900 Lugano, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Luzern
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/lucerne" class="uri">https://global.flixbus.com/bus/lucerne</a>
+</td>
+<td style="text-align:left;">
+Inseliquai, 6005 Luzern, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Martigny
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/martigny" class="uri">https://global.flixbus.com/bus/martigny</a>
+</td>
+<td style="text-align:left;">
+Rue d’Aoste, 1920 Martigny, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Montreux
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/montreux" class="uri">https://global.flixbus.com/bus/montreux</a>
+</td>
+<td style="text-align:left;">
+Chailly P+R, 1816 Montreux, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Neuchâtel (Switzerland)
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/neuchatel-switzerland" class="uri">https://global.flixbus.com/bus/neuchatel-switzerland</a>
+</td>
+<td style="text-align:left;">
+Rue des Beaux-Arts 2, 2000 Neuchâtel (Switzerland), Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Nyon
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/nyon" class="uri">https://global.flixbus.com/bus/nyon</a>
+</td>
+<td style="text-align:left;">
+Impasse de Champ-Colin 12, 1260 Nyon, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Olten
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/olten" class="uri">https://global.flixbus.com/bus/olten</a>
+</td>
+<td style="text-align:left;">
+Gösgerstrasse, 4600 Olten, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Schaffhausen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/schaffhausen" class="uri">https://global.flixbus.com/bus/schaffhausen</a>
+</td>
+<td style="text-align:left;">
+Spitalstrasse 5, Landhaus, 8200 Schaffhausen, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Sion
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/sion" class="uri">https://global.flixbus.com/bus/sion</a>
+</td>
+<td style="text-align:left;">
+Rue de la Traversiere 2, 1950 Sion, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Solothurn
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/solothurn" class="uri">https://global.flixbus.com/bus/solothurn</a>
+</td>
+<td style="text-align:left;">
+Zuchwilerstrasse 33, 4500 Solothurn, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Splügen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/splugen" class="uri">https://global.flixbus.com/bus/splugen</a>
+</td>
+<td style="text-align:left;">
+Italienische Strasse 44, 7435 Splügen, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+St. Gallen
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/st-gallen" class="uri">https://global.flixbus.com/bus/st-gallen</a>
+</td>
+<td style="text-align:left;">
+Lagerstrasse 10, 9000 St. Gallen, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Stans
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/stans" class="uri">https://global.flixbus.com/bus/stans</a>
+</td>
+<td style="text-align:left;">
+Bluemattstrasse 1, 6370 Stans, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Sursee
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/sursee" class="uri">https://global.flixbus.com/bus/sursee</a>
+</td>
+<td style="text-align:left;">
+Surentalstrasse, 6210 Sursee, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Thun
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/thun" class="uri">https://global.flixbus.com/bus/thun</a>
+</td>
+<td style="text-align:left;">
+Talackerstrasse 62, 3604 Thun, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Vevey
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/vevey" class="uri">https://global.flixbus.com/bus/vevey</a>
+</td>
+<td style="text-align:left;">
+Avenue Reller, 1800 Vevey, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Winterthur
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/winterthur" class="uri">https://global.flixbus.com/bus/winterthur</a>
+</td>
+<td style="text-align:left;">
+Lagerhausstrasse 18, 8400 Winterthur, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Yverdon les Bains
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/yverdon-les-bains" class="uri">https://global.flixbus.com/bus/yverdon-les-bains</a>
+</td>
+<td style="text-align:left;">
+Avenue de la Gare, 1400 Yverdon les Bains, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zurich
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/zurich" class="uri">https://global.flixbus.com/bus/zurich</a>
+</td>
+<td style="text-align:left;">
+Ausstellungsstrasse 5, 8005 Zurich, Switzerland
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Zurich Airport
+</td>
+<td style="text-align:left;">
+<a href="https://global.flixbus.com/bus/zurich-airport" class="uri">https://global.flixbus.com/bus/zurich-airport</a>
+</td>
+<td style="text-align:left;">
+Flughafenstrasse (Bus station), 8302 Zurich Airport, Switzerland
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:400px; ">
+<table class="table table-striped table-hover" style="margin-left: auto; margin-right: auto;">
+<caption>
+<p>List of cities and their bus
+stops</p>
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+<p>Cities</p>
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+<p>Pages</p>
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+<p>Address</p>
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+<p>Airolo</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/airolo" class="uri">https://global.flixbus.com/bus/airolo</a></p>
+</td>
+<td style="text-align:left;">
+<p>Via Fontana, 6780 Airolo, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Baden</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/baden" class="uri">https://global.flixbus.com/bus/baden</a></p>
+</td>
+<td style="text-align:left;">
+<p>Brown Boveri Str. 16-20, 5400 Baden, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Basel</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/basel-weil-am-rhein" class="uri">https://global.flixbus.com/bus/basel-weil-am-rhein</a></p>
+</td>
+<td style="text-align:left;">
+<p>Meret Oppenheim-Strasse, 4053 Basel, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Basel EuroAirport (CH)</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/basel-euroairport-ch" class="uri">https://global.flixbus.com/bus/basel-euroairport-ch</a></p>
+</td>
+<td style="text-align:left;">
+<p>Flughafen Basel-Mulhouse, 4030 Basel EuroAirport (CH), Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Bellinzona</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/bellinzona" class="uri">https://global.flixbus.com/bus/bellinzona</a></p>
+</td>
+<td style="text-align:left;">
+<p>Via Stazione, 6532 Bellinzona, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Bern</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/bern" class="uri">https://global.flixbus.com/bus/bern</a></p>
+</td>
+<td style="text-align:left;">
+<p>Studerstrasse, 3012 Bern, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Biasca</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/biasca" class="uri">https://global.flixbus.com/bus/biasca</a></p>
+</td>
+<td style="text-align:left;">
+<p>Via Generale Guisan 2, 6710 Biasca, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Biel</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/biel" class="uri">https://global.flixbus.com/bus/biel</a></p>
+</td>
+<td style="text-align:left;">
+<p>Stadien/Stades, 2504 Biel, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Bulle</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/bulle" class="uri">https://global.flixbus.com/bus/bulle</a></p>
+</td>
+<td style="text-align:left;">
+<p>Rue de Vuippens 49, 1630 Bulle, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Chur</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/chur" class="uri">https://global.flixbus.com/bus/chur</a></p>
+</td>
+<td style="text-align:left;">
+<p>Gürtelstrasse 14, 7000 Chur, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Flüelen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/fluelen" class="uri">https://global.flixbus.com/bus/fluelen</a></p>
+</td>
+<td style="text-align:left;">
+<p>Bahnhofstrasse, 6454 Flüelen, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Fribourg (Suisse)</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/fribourg" class="uri">https://global.flixbus.com/bus/fribourg</a></p>
+</td>
+<td style="text-align:left;">
+<p>Chemin Saint-Léonard, 1700 Fribourg (Suisse), Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Fribourg (Suisse)</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/fribourg" class="uri">https://global.flixbus.com/bus/fribourg</a></p>
+</td>
+<td style="text-align:left;">
+<p>Rue Louis-d’Affry 2, 1700 Fribourg (Suisse), Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Füllinsdorf</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/fullinsdorf" class="uri">https://global.flixbus.com/bus/fullinsdorf</a></p>
+</td>
+<td style="text-align:left;">
+<p>Rheinstrasse 2, 4414 Füllinsdorf, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Geneva</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/geneva" class="uri">https://global.flixbus.com/bus/geneva</a></p>
+</td>
+<td style="text-align:left;">
+<p>Place Dorcière, 1201 Geneva, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Geneva</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/geneva" class="uri">https://global.flixbus.com/bus/geneva</a></p>
+</td>
+<td style="text-align:left;">
+<p>Place Martin Luther King, 74100 Geneva, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Geneva Airport</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/geneva-airport" class="uri">https://global.flixbus.com/bus/geneva-airport</a></p>
+</td>
+<td style="text-align:left;">
+<p>Route de l’aéroport, 1215 Geneva Airport, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Göschenen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/goschenen" class="uri">https://global.flixbus.com/bus/goschenen</a></p>
+</td>
+<td style="text-align:left;">
+<p>Bahnhofplatz, 6487 Göschenen, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Grindelwald</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/grindelwald" class="uri">https://global.flixbus.com/bus/grindelwald</a></p>
+</td>
+<td style="text-align:left;">
+<p>Endweg, 3818 Grindelwald, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Horgen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/horgen" class="uri">https://global.flixbus.com/bus/horgen</a></p>
+</td>
+<td style="text-align:left;">
+<p>Dorfgasse, 8810 Horgen, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Interlaken</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/interlaken" class="uri">https://global.flixbus.com/bus/interlaken</a></p>
+</td>
+<td style="text-align:left;">
+<p>Rugenparkstrasse, 3800 Interlaken, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Landquart</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/landquart" class="uri">https://global.flixbus.com/bus/landquart</a></p>
+</td>
+<td style="text-align:left;">
+<p>Tardisstrasse 20, 7205 Landquart, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Lausanne</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/lausanne" class="uri">https://global.flixbus.com/bus/lausanne</a></p>
+</td>
+<td style="text-align:left;">
+<p>Route des Plaines-du-Loup, 1018 Lausanne, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Lugano</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/lugano" class="uri">https://global.flixbus.com/bus/lugano</a></p>
+</td>
+<td style="text-align:left;">
+<p>Via Giacomo E Filippo Ciani, 6900 Lugano, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Luzern</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/lucerne" class="uri">https://global.flixbus.com/bus/lucerne</a></p>
+</td>
+<td style="text-align:left;">
+<p>Inseliquai, 6005 Luzern, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Martigny</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/martigny" class="uri">https://global.flixbus.com/bus/martigny</a></p>
+</td>
+<td style="text-align:left;">
+<p>Rue d’Aoste, 1920 Martigny, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Mendrisio</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/mendrisio" class="uri">https://global.flixbus.com/bus/mendrisio</a></p>
+</td>
+<td style="text-align:left;">
+<p>Via Laveggio, 6850 Mendrisio, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Montreux</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/montreux" class="uri">https://global.flixbus.com/bus/montreux</a></p>
+</td>
+<td style="text-align:left;">
+<p>Chailly P+R, 1816 Montreux, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Neuchâtel (Switzerland)</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/neuchatel-switzerland" class="uri">https://global.flixbus.com/bus/neuchatel-switzerland</a></p>
+</td>
+<td style="text-align:left;">
+<p>Rue des Beaux-Arts 2, 2000 Neuchâtel (Switzerland), Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Nyon</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/nyon" class="uri">https://global.flixbus.com/bus/nyon</a></p>
+</td>
+<td style="text-align:left;">
+<p>Impasse de Champ-Colin 12, 1260 Nyon, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Olten</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/olten" class="uri">https://global.flixbus.com/bus/olten</a></p>
+</td>
+<td style="text-align:left;">
+<p>Gösgerstrasse, 4600 Olten, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Schaffhausen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/schaffhausen" class="uri">https://global.flixbus.com/bus/schaffhausen</a></p>
+</td>
+<td style="text-align:left;">
+<p>Spitalstrasse 5, Landhaus, 8200 Schaffhausen, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Sion</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/sion" class="uri">https://global.flixbus.com/bus/sion</a></p>
+</td>
+<td style="text-align:left;">
+<p>Rue de la Traversiere 2, 1950 Sion, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Solothurn</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/solothurn" class="uri">https://global.flixbus.com/bus/solothurn</a></p>
+</td>
+<td style="text-align:left;">
+<p>Zuchwilerstrasse 33, 4500 Solothurn, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Splügen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/splugen" class="uri">https://global.flixbus.com/bus/splugen</a></p>
+</td>
+<td style="text-align:left;">
+<p>Italienische Strasse 44, 7435 Splügen, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>St. Gallen</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/st-gallen" class="uri">https://global.flixbus.com/bus/st-gallen</a></p>
+</td>
+<td style="text-align:left;">
+<p>Lagerstrasse 10, 9000 St. Gallen, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Stans</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/stans" class="uri">https://global.flixbus.com/bus/stans</a></p>
+</td>
+<td style="text-align:left;">
+<p>Bluemattstrasse 1, 6370 Stans, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Sursee</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/sursee" class="uri">https://global.flixbus.com/bus/sursee</a></p>
+</td>
+<td style="text-align:left;">
+<p>Surentalstrasse, 6210 Sursee, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Thun</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/thun" class="uri">https://global.flixbus.com/bus/thun</a></p>
+</td>
+<td style="text-align:left;">
+<p>Talackerstrasse 62, 3604 Thun, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Vevey</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/vevey" class="uri">https://global.flixbus.com/bus/vevey</a></p>
+</td>
+<td style="text-align:left;">
+<p>Avenue Reller, 1800 Vevey, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Winterthur</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/winterthur" class="uri">https://global.flixbus.com/bus/winterthur</a></p>
+</td>
+<td style="text-align:left;">
+<p>Lagerhausstrasse 18, 8400 Winterthur, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Yverdon les Bains</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/yverdon-les-bains" class="uri">https://global.flixbus.com/bus/yverdon-les-bains</a></p>
+</td>
+<td style="text-align:left;">
+<p>Avenue de la Gare, 1400 Yverdon les Bains, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Zurich</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/zurich" class="uri">https://global.flixbus.com/bus/zurich</a></p>
+</td>
+<td style="text-align:left;">
+<p>Ausstellungsstrasse 5, 8005 Zurich, Switzerland</p>
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+<p>Zurich Airport</p>
+</td>
+<td style="text-align:left;">
+<p><a href="https://global.flixbus.com/bus/zurich-airport" class="uri">https://global.flixbus.com/bus/zurich-airport</a></p>
+</td>
+<td style="text-align:left;">
+<p>Flughafenstrasse (Bus station), 8302 Zurich Airport, Switzerland</p>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Finally, let’s just save these informations into a CSV file so we can
+inspect them, and even print them, so we can consult it even without
+internet connection:</p>
+<pre class="r"><code>write.csv(dest.results, 
+          &quot;switzerland_destinations_addresses.csv&quot;)</code></pre>
+<p>And that’s the scraping parts, finished!</p>
+</div>
+</div>
+<div id="step-3-geocoding" class="section level1">
+<h1>Step 3: Geocoding</h1>
+<p>Now that we have obtained their addresses, it’s time to find their
+coordinates. To do this, we used <code>tmaptools</code>’s <code>geocode_OSM</code> function.</p>
+<p>Firstly, let’s make three additional columns in the <code>dest.results</code> data
+frame for the longitudinal and latitude of each street addresses <em>and</em>
+also for a note to let us know if the geocoding is successful or not:</p>
+<pre class="r"><code>dest.results$Lon &lt;- NA
+dest.results$Lat &lt;- NA
+dest.results$Note &lt;- NA</code></pre>
+<p>Then, let’s loop over each rows of the <code>dest.results</code> data frame to get
+the coordinates of each addresses <em>and</em> put them directly into the <code>Lon</code>
+and <code>Lat</code> column:</p>
+<pre class="r"><code>for (i in 1:nrow(dest.results)) {
+  
+  tryCatch({ # We put this here so that, if OSM failed in finding the 
+             # coordinates, it will not stop the loop
+    
+    res_geo &lt;- geocode_OSM(as.character(dest.results$Address[i]),
+            as.data.frame = TRUE)
+    
+    dest.results$Lon[i] &lt;- res_geo$lon
+    
+    dest.results$Lat[i] &lt;- res_geo$lat
+    
+  }, warning=function(w){Sys.sleep(0)}) # Basically, skip
+  
+  Sys.sleep(3) #Each time, we give the OSM a &quot;rest time&quot; of three seconds
+  
+}</code></pre>
+<p>We found that, apparently, there are some addresses that we couldn’t
+find using OSM. That’s unfortunate, but that also shows us the
+capability of OSM, which is one of the objectives that we wanted from
+this project.</p>
+<p>So let’s put a message on those addresses that we couldn’t find so that
+it is clear which one has the exact coordinates and which one doesn’t.</p>
+<pre class="r"><code>for (i in 1:nrow(dest.results)) {
+  
+  if(is.na(dest.results$Lon[i]) | is.na(dest.results$Lat[i])){
+    dest.results$Note[i] &lt;- &quot;Coordinates not found on OSM&quot;
+  }else{
+    dest.results$Note[i] &lt;- &quot;Coordinates found&quot;
+  }
+  
+}</code></pre>
+<p>And finally, let’s calculate the percentage of places found by OSM and
+the percentage of those who wasn’t
+found:</p>
+<pre class="r"><code>percent_found &lt;- nrow(dest.results[dest.results$Note == &quot;Coordinates found&quot;,])/nrow(dest.results)*100
+
+percent_notfound &lt;- nrow(dest.results[dest.results$Note == &quot;Coordinates not found on OSM&quot;,])/nrow(dest.results)*100
+
+pie(c(percent_found,percent_notfound), 
+    labels = c(paste(&quot;Found (&quot;, percent_found, &quot;%)&quot;, sep = &quot;&quot;),
+               paste(&quot;Not found (&quot;, percent_notfound, &quot;%)&quot;, sep = &quot;&quot;)), 
+    main=&quot;Percentage of Bus Stops Found and Not Found by OSM&quot;)</code></pre>
+<p><img src="2019-09-07-wp-scraping-flixbus-switzerland_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
+<p><img src="https://github.com/ahmad-alkadri/ahmad-alkadri.github.io/blob/master/_posts/2019-09-07-wp-scraping-flixbus-switzerland_files/figure-gfm/successrateOSM-1.png?raw=true" /><!-- --></p>
+</div>
+<div id="step-4-visualizing-on-map" class="section level1">
+<h1>Step 4: Visualizing on Map</h1>
+<p>We now have the addresses and the coordinates for, well, <em>most</em> of the
+bus stop. Now, let’s put them on the map using <code>leaflet</code> package.</p>
+<p>To do that, firstly we need to frame them in a larger map, which in this
+case, is the map of Switzerland:</p>
+<pre class="r"><code>geoswitzerland &lt;- geocode_OSM(&quot;Switzerland&quot;,
+                         as.data.frame = TRUE)
+
+mapres &lt;- leaflet(width = &quot;100%&quot;)
+
+mapres &lt;- addTiles(mapres)
+
+mapres &lt;- fitBounds(mapres, lng1 = geoswitzerland$lon_min, lng2 = geoswitzerland$lon_max,
+            lat1 = geoswitzerland$lat_min, lat2 = geoswitzerland$lat_max)</code></pre>
+<p>Afterwards, we put the locations using markers on this map by looping
+over each found coordinates:</p>
+<pre class="r"><code>for (i in 1:nrow(dest.results)) {
+  if(dest.results$Note[i]==&quot;Coordinates found&quot;){
+    mapres &lt;- addMarkers(mapres,
+                       lng = as.numeric(dest.results$Lon[i]),
+                       lat = as.numeric(dest.results$Lat[i]),
+                       popup = as.character(dest.results$Address[i]))
+  }
+}
+
+# Show the map
+mapres</code></pre>
+<div id="htmlwidget-dd72b4c323fa763c7b7c" style="width:100%;height:480px;" class="leaflet html-widget"></div>
+<script type="application/json" data-for="htmlwidget-dd72b4c323fa763c7b7c">{"x":{"options":{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}}},"calls":[{"method":"addTiles","args":["//{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",null,null,{"minZoom":0,"maxZoom":18,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"attribution":"&copy; <a href=\"http://openstreetmap.org\">OpenStreetMap<\/a> contributors, <a href=\"http://creativecommons.org/licenses/by-sa/2.0/\">CC-BY-SA<\/a>"}]},{"method":"addMarkers","args":[46.5247257,8.6018763,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Fontana, 6780 Airolo, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.4798194,8.3050274,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Brown Boveri Str. 16-20, 5400 Baden, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.5467532,7.5867062,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Meret Oppenheim-Strasse, 4053 Basel, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.195663,9.0290092,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Stazione, 6532 Bellinzona, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.9628848,7.4326294,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Studerstrasse, 3012 Bern, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.3592401,8.9692931,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Generale Guisan 2, 6710 Biasca, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.1563636,7.2815253,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Stadien/Stades, 2504 Biel, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.8529854,9.5266889,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Gürtelstrasse 14, 7000 Chur, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.8961093,8.6224606,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Bahnhofstrasse, 6454 Flüelen, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.5192476,7.7183287,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Rheinstrasse 2, 4414 Füllinsdorf, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.2084236,6.1465941,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Place Dorcière, 1201 Geneva, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.6231688,8.0349541,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Endweg, 3818 Grindelwald, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.6813464,7.8516148,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Rugenparkstrasse, 3800 Interlaken, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.9613726,9.5537225,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Tardisstrasse 20, 7205 Landquart, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.5336232,6.6262459,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Route des Plaines-du-Loup, 1018 Lausanne, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.015894,8.9614531,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Giacomo E Filippo Ciani, 6900 Lugano, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.0487612,8.3141415,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Inseliquai, 6005 Luzern, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.1046024,7.0802747,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Rue d'Aoste, 1920 Martigny, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.3839602,6.22121903713819,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Impasse de Champ-Colin 12, 1260 Nyon, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.3529008,7.9068728,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Gösgerstrasse, 4600 Olten, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.2034252,7.5427226,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Zuchwilerstrasse 33, 4500 Solothurn, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.5556467,9.3332148,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Italienische Strasse 44, 7435 Splügen, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.4223591,9.3666605,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Lagerstrasse 10, 9000 St. Gallen, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.9612994,8.36368965,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Bluemattstrasse 1, 6370 Stans, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.1797645,8.1105133,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Surentalstrasse, 6210 Sursee, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.7444501,7.6138807,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Talackerstrasse 62, 3604 Thun, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.4676699,6.8370102,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Avenue Reller, 1800 Vevey, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.4977472,8.7234524,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Lagerhausstrasse 18, 8400 Winterthur, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.7818492,6.6386789,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Avenue de la Gare, 1400 Yverdon les Bains, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.38088325,8.53739033168773,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Ausstellungsstrasse 5, 8005 Zurich, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]}],"fitBounds":[45.817995,5.9559113,47.8084648,10.4922941,[]],"limits":{"lat":[46.015894,47.5467532],"lng":[6.1465941,9.5537225]}},"evals":[],"jsHooks":[]}</script>
+
+
+<div id="htmlwidget-c7ff61834f9c1030ba81" class="leaflet html-widget" style="width:100%;height:480px;">
+
+</div>
+
+<script type="application/json" data-for="htmlwidget-c7ff61834f9c1030ba81">{"x":{"options":{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}}},"calls":[{"method":"addTiles","args":["//{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",null,null,{"minZoom":0,"maxZoom":18,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"attribution":"&copy; <a href=\"http://openstreetmap.org\">OpenStreetMap<\/a> contributors, <a href=\"http://creativecommons.org/licenses/by-sa/2.0/\">CC-BY-SA<\/a>"}]},{"method":"addMarkers","args":[46.5247257,8.6018763,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Fontana, 6780 Airolo, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.4798194,8.3050274,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Brown Boveri Str. 16-20, 5400 Baden, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.5458731,7.5894754,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Meret Oppenheim-Strasse, 4053 Basel, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.195663,9.0290092,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Stazione, 6532 Bellinzona, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.9628848,7.4326294,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Studerstrasse, 3012 Bern, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.3592401,8.9692931,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Generale Guisan 2, 6710 Biasca, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.1563636,7.2815253,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Stadien/Stades, 2504 Biel, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.6267454,7.0609729,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Rue de Vuippens 49, 1630 Bulle, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.8529854,9.5266889,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Gürtelstrasse 14, 7000 Chur, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.8961093,8.6224606,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Bahnhofstrasse, 6454 Flüelen, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.5192476,7.7183287,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Rheinstrasse 2, 4414 Füllinsdorf, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.2084236,6.1465941,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Place Dorcière, 1201 Geneva, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.6231688,8.0349541,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Endweg, 3818 Grindelwald, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.2606684,8.5992007,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Dorfgasse, 8810 Horgen, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.6810628,7.851769,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Rugenparkstrasse, 3800 Interlaken, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.9613726,9.5537225,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Tardisstrasse 20, 7205 Landquart, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.5336232,6.6262459,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Route des Plaines-du-Loup, 1018 Lausanne, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.015894,8.9614531,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Giacomo E Filippo Ciani, 6900 Lugano, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.0487612,8.3141415,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Inseliquai, 6005 Luzern, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.1046024,7.0802747,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Rue d'Aoste, 1920 Martigny, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[45.8837099,8.9800467,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Via Laveggio, 6850 Mendrisio, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.3839602,6.22121903713819,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Impasse de Champ-Colin 12, 1260 Nyon, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.3639672,7.9126423,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Gösgerstrasse, 4600 Olten, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.2034252,7.5427226,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Zuchwilerstrasse 33, 4500 Solothurn, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.5556467,9.3332148,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Italienische Strasse 44, 7435 Splügen, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.4223591,9.3666605,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Lagerstrasse 10, 9000 St. Gallen, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.9612994,8.36368965,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Bluemattstrasse 1, 6370 Stans, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.1797645,8.1105133,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Surentalstrasse, 6210 Sursee, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.7444501,7.6138807,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Talackerstrasse 62, 3604 Thun, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.4676699,6.8370102,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Avenue Reller, 1800 Vevey, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.4977472,8.7234524,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Lagerhausstrasse 18, 8400 Winterthur, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[46.7818492,6.6386789,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Avenue de la Gare, 1400 Yverdon les Bains, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addMarkers","args":[47.38088325,8.53739033168773,null,null,null,{"interactive":true,"draggable":false,"keyboard":true,"title":"","alt":"","zIndexOffset":0,"opacity":1,"riseOnHover":false,"riseOffset":250},"Ausstellungsstrasse 5, 8005 Zurich, Switzerland",null,null,null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]}],"fitBounds":[45.817995,5.9559113,47.8084648,10.4922941,[]],"limits":{"lat":[45.8837099,47.5458731],"lng":[6.1465941,9.5537225]}},"evals":[],"jsHooks":[]}</script>
+
+
+<p>And that’s the visualization, finished.</p>
+</div>
+<div id="final-thoughts" class="section level1">
+<h1>Final Thoughts</h1>
+<p>So those are the results that I have obtained through these web-scraping
+scripts that I made. We’ve got ourselves the list of the cities
+connected by the Flixbus network in Switzerland and, what’s more, we
+know the addresses of Flixbus stops in those cities. We’ve succeeded in
+saving them and exporting them into a text file, which is very good, and
+if you’re a frequent traveler (or backpacker, like I used to be), I
+think we can always appreciate having those addresses handly, offline,
+and ready to be printed.</p>
+<p>Then came the part where we tried to search those addresses using OSM,
+wherein we found out that not all of those addresses could be found by
+OSM. Sure, you can use Google Maps instead of OSM for geocoding, but the
+reason why I chose to use OSM here is because of their openness and
+freeness. Unlike Google Maps, which now limits the number of requests
+(of course, any internet map service provider has the right to do that),
+and who asks us to create a “billing” account to use their API, OSM
+allows people like me–who really likes having a reproducible,
+easy-to-use right of the bat scripts (really, you can download this R
+markdown file and run it by yourself through your Rstudio and I am quite
+certain that you’ll have the same results)–to do geocoding openly and
+freely.</p>
+<p>If you’re someone like me, who is a proponent of open access to data, I
+think you’re going to agree that having a free, accurate geographic
+dataset is more important than ever now, especially with the rise of
+self-driving cars and services. And if you’re still unconvinced about
+the importance of OSM, I’d like to suggest to you to read
+<a href="https://blog.emacsen.net/blog/2014/01/04/why-the-world-needs-openstreetmap/">this</a>
+blog post and
+<a href="https://www.linuxjournal.com/content/openstreetmap-should-be-priority-open-source-community">this</a>
+article. <em>Those things being said</em>, we can’t deny that OSM itself still
+needs improvement, <a href="https://blog.emacsen.net/blog/2018/02/16/osm-is-in-trouble/">especially in
+geocoding</a>.
+That doesn’t mean we should stop using it, it just means that OSM is
+still developing and that we can contribute to that.</p>
+<p>Finally, I’d just like to point out that the FlixBus website themselves
+actually contain the coordinates of <strong>all the addresses</strong> of their
+FlixBus stops. You can check it out. But the objective of this project
+is, again, is not to really obtain all those coordinates, it is to see
+the capability of OSM for geocoding of these addresses. And in my
+opinion, OSM is already very good for that, although they could improve,
+certainly. And at the end, the most impotant thing is, perhaps: we have
+obtained the list of all FlixBus stops addresses in Switzerland, and it
+should be very handy to have, especially in conditions where we are
+traveling without a consistent internet access.</p>
+</div>
+<div id="closing" class="section level1">
+<h1>Closing</h1>
+<p>Any questions? Thoughts? Perhaps you’ve found some errors in my codes?
+Feel free to hit me at my
+<a href="https://www.linkedin.com/in/alkadri">LinkedIn</a> or
+<a href="mailto:ahmad.alkadri@outlook.com">email</a>. God knows I still need to
+learn a lot. Always love to discuss!</p>
+</div>
