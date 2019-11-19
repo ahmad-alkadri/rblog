@@ -1,5 +1,5 @@
 ---
-title: Embedding video
+title: Embedding video on Rmarkdown using Blogdown package
 author: Ahmad Alkadri
 date: '2019-11-19'
 slug: embedding-video
@@ -19,6 +19,9 @@ about embedding YouTube videos using this simple blogdown function:
 blogdown::shortcode("youtube", "P3aGk_Gwqjw")
 ```
 
+where ```"P3aGk_Gwqjw"``` is the video's YouTube ID.
+
+And that's all. No wasted lines; very efficient. 
 I think I will never cease to be amazed by R developers. 
 The possibilities are truly endless now.
 
