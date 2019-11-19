@@ -3,6 +3,7 @@ date: "2019-11-18"
 title: About
 categories:
   - page
+type: "page"
 ---
 
 My name is Ahmad Alkadri. You can find out more about me 
