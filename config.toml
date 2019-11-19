@@ -2,7 +2,7 @@ baseurl = "/"
 languageCode = "en-us"
 title = "Le Cahier"
 theme = "ezhil"
-googleAnalytics = ""
+googleAnalytics = "UA-146801316-1"
 disqusShortname = "le-cahier-dahmad"
 ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
 
