@@ -1,0 +1,26 @@
+---
+title: Embedding video
+author: Ahmad Alkadri
+date: '2019-11-19'
+slug: embedding-video
+categories:
+  - post
+  - video
+tags:
+  - video
+  - youtube
+  - embed
+---
+
+I've just read [this article](https://www.r-bloggers.com/use-shortcodes-to-embed-tweets-videos-etc-in-your-blogdown-blog-posts/) 
+about embedding YouTube videos using this simple blogdown function:
+
+```{r, eval=TRUE}
+blogdown::shortcode("youtube", "P3aGk_Gwqjw")
+```
+
+I think I will never cease to be amazed by R developers. 
+The possibilities are truly endless now.
+
+***PS:** "Electro swing". Check it out on YouTube. Thank me later.*
+
