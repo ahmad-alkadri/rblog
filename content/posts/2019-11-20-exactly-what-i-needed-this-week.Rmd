@@ -1,0 +1,31 @@
+---
+title: Exactly what I needed this week
+author: Ahmad Alkadri
+date: '2019-11-20'
+slug: exactly-what-i-needed-this-week
+categories:
+  - post
+tags:
+  - embed
+  - youtube
+  - video
+  - song
+type: post
+---
+
+Je viens d'avoir ma femme me notifie que IU 
+vient de publier une nouvelle chanson. 
+Le titre est *"Blueming"* (comme un mélange de *Blue* et *Blooming*) 
+et honnêtement je ne savais pas avant mais c'est exactement 
+ce dont j'avais besoin pour passer cette semaine assez rugueuse.
+
+```{r, eval=TRUE, echo = FALSE}
+blogdown::shortcode("youtube", "D1PvIWdJ8xo")
+```
+
+Aussi comment ça s'appelle ce genre de musique ? 
+Cela a l'air super bon c'est comme les chansons 
+depuis *early 2000s*. C'est très *"homy"* mais en même temps 
+aussi énergétique. J'adore !
+
+(*Putting the song on repeat while continuing to write thesis*)
