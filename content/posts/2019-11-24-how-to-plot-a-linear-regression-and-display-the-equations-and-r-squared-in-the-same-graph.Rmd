@@ -9,24 +9,180 @@ categories:
 tags:
   - R
   - script
+  - regression
   - visualization
 ---
 
-A more compatible title perhaps would be: 
-**How to plot an Excel-like linear regression in R**. 
+## Intro
 
+A more compatible title perhaps would be: 
+**How to plot an [Excel-like](https://spreadsheeto.com/wp-content/uploads/2019/08/trendline-options-line-regression.gif) linear regression in R**. 
 This is a half-note, half-tutorial that I wrote partly because 
 lately I keep forgetting it, something that I'm actually a bit 
-ashamed, although it seems to be quite normal.
+ashamed, although it seems apparently to be quite normal among 
+data scientists to forget some basic things, like [reading 
+CSV files](https://www.linkedin.com/posts/imaad-mohamed-khan-218b3999_datascience-machinelearning-programming-activity-6602948478396129280-YUcV).
 
 I suppose a background is needed.
 
 I first started to use R because I'm interested in its 
 visualization capability. In the lab I was working at the time 
-(I was an intern then).
+(I was an intern then). The large amount of data that I was working 
+with made it quite difficult to keep using Excel. 
 
-```{r}
-x = seq(0,10,length.out = 10)
-y = seq(0,20,length.out = 10)
-plot(x,y)
+That was when I stumbled upon R. A Ph.D. student who 
+was in the same team with me used it all the time and it just seemed 
+so seamless for her to use it. So I was interested and started learning.
+
+Among my first tasks was conducting regression analysis *and*, 
+afterwards, visualizing them on base R plot. It took me 
+one full day to learn it and finally save them into a re-usable script. 
+It involves no additional packages at all but it involves some 
+specific functions such as `lm` and knowing `bquote` syntax.
+
+So, without further ado, let's get in.
+
+----
+
+## Importing data
+
+As an example we're going to use this insurance price data 
+from Kaggle that I found, which apparently originated from 
+this repository. The data contains informations about the people's age, 
+BMI, gender, whether they have kids or not, their 
+region, and whether they smoke or not. 
+
+```{r loaddat}
+dat <- read.csv("https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv")
+head(dat)
 ```
+
+It is clear that the objective of this data is to try to predict the 
+insurance price based on the parameters available. For starter, let's 
+just choose the `bmi` as the independent variable and of course `charges`
+as the dependent variable.
+
+```{r getvars}
+par <- "bmi"
+res <- "charges"
+indvar <- dat[,"bmi"]
+depvar <- dat[,"charges"]
+```
+
+Now with those data, let's do the linear regression.
+
+----
+
+## Linear regression
+
+We're going to go ahead and assume that the regression with those two 
+parameters are linear. So, the basic model that we want to have is:
+
+```
+y = ax+b
+```
+
+where `y` is the `depvar`, `x` is the `indvar`, while `a` and `b` 
+are the gradient and intercept to be calculated.
+
+```{r calcreg}
+reg.lm <- lm(depvar ~ indvar)
+```
+
+and then let's summarize them:
+
+```{r sumreg}
+sum.reg.lm <- summary(reg.lm)
+sum.reg.lm$coefficients
+```
+
+Some things could be noted here, mostly the fact that the 
+intercept (*b*) has no significant effect on the model *while* 
+the (*a*) seems to be significant. **Or is it?** We're going 
+to verify it soon. For now, let's save those variables into:
+
+```{r saveparams}
+a.lm <- sum.reg.lm$coefficients[1,2]
+b.lm <- sum.reg.lm$coefficients[1,1]
+```
+
+and it's never a bad idea to also save the R-square value:
+
+```{r saversq}
+r.lm <- sum.reg.lm$r.squared
+```
+
+and that's it. We now continue with the visualization.
+
+----
+
+## Plotting
+
+The first step, the plotting itself, is quite simple. 
+We just firstly need to put the data into plot 
+and then make the regression lines:
+
+```{r plot1}
+# Make the plot
+plot(x = indvar, y = depvar,
+     xlab = "x", ylab = "y",
+     pch = 16,
+     cex = 0.5)
+# Make the regression line
+abline(reg.lm, col = "red", lwd = 2)
+```
+
+Next step is putting the equation on the graph. We have two option: 
+putting them inside the graph or outside the graph. 
+Here because we see that the data points are filling the inside 
+of the graph, putting the equation outside seems a better choice.
+
+Now we make the equation by using `bquote`, but we to facilitates 
+the presentation, let's just make sure that our `a` and `b` values 
+don't have too many decimals behind. We do this by rounding 
+them up:
+
+```{r roundup}
+afin <- round(a.lm, digits = 2)
+bfin <- round(b.lm, digits = 2)
+rfin <- round(r.lm, digits = 2)
+```
+
+and then we save them into this equation:
+
+```{r makeeq}
+eqreg <- bquote(y == .(afin)*x*"+"*.(bfin)*","~R^2 == .(rfin))
+```
+
+Now the last thing we should do is to recall the plot 
+and put the saved equation, `eqreg`, to the top of the graph:
+
+```{r plot2}
+# Make the plot
+plot(x = indvar, y = depvar,
+     xlab = "x", ylab = "y",
+     pch = 16,
+     cex = 0.5)
+# Make the regression line
+abline(reg.lm, col = "red", lwd = 2)
+mtext(eqreg, side = 3)
+```
+
+And that's it! It's finished.
+
+----
+
+## Final note
+
+As a final note, perhaps, we can see clearly that the regression linear 
+shows that the parameter that we have picked--`bmi`--definitely does 
+not have significant relationship with the `charges`, and thus 
+can't be used to predict the insurance price reliable.
+
+*But what about the other parameters?* Well, now that we have the 
+scripts, we just need to check it out, don't we? *What about 
+the multivariate regression?* Now that's interesting and definitely 
+another thing that I need to memorise enough well also. Perhaps later 
+we will try it.
+
+Thanks for reading!
