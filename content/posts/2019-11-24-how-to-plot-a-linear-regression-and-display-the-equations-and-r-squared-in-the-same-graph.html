@@ -11,6 +11,7 @@ tags:
   - script
   - regression
   - visualization
+mathjax: true
 ---
 
 
@@ -74,9 +75,10 @@ depvar &lt;- dat[,res]</code></pre>
 <h2>Linear regression</h2>
 <p>We’re going to go ahead and assume that the regression with those two
 parameters are linear. So, the basic model that we want to have is:</p>
-<pre><code>y = ax+b</code></pre>
-<p>where <code>y</code> is the <code>depvar</code>, <code>x</code> is the <code>indvar</code>, while <code>a</code> and <code>b</code>
-are the gradient and intercept to be calculated.</p>
+<p><span class="math display">\[
+y = ax+b
+\]</span></p>
+<p>where <span class="math inline">\(y\)</span> is the <code>depvar</code>, <span class="math inline">\(x\)</span> is the <code>indvar</code>, while <span class="math inline">\(a\)</span> and <span class="math inline">\(b\)</span> are the gradient and intercept to be calculated.</p>
 <pre class="r"><code>reg.lm &lt;- lm(depvar ~ indvar)</code></pre>
 <p>and then let’s summarize them:</p>
 <pre class="r"><code>sum.reg.lm &lt;- summary(reg.lm)

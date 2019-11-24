@@ -11,6 +11,7 @@ tags:
   - script
   - regression
   - visualization
+mathjax: true
 ---
 
 ## Intro
@@ -85,12 +86,11 @@ Now with those data, let's do the linear regression.
 We're going to go ahead and assume that the regression with those two 
 parameters are linear. So, the basic model that we want to have is:
 
-```
+$$
 y = ax+b
-```
+$$
 
-where `y` is the `depvar`, `x` is the `indvar`, while `a` and `b` 
-are the gradient and intercept to be calculated.
+where $y$ is the `depvar`, $x$ is the `indvar`, while $a$ and $b$ are the gradient and intercept to be calculated.
 
 ```{r calcreg}
 reg.lm <- lm(depvar ~ indvar)
