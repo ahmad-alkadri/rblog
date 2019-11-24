@@ -63,11 +63,17 @@ insurance price based on the parameters available. For starter, let's
 just choose the `bmi` as the independent variable and of course `charges`
 as the dependent variable.
 
-```{r getvars}
+```{r choosevars}
 par <- "bmi"
 res <- "charges"
-indvar <- dat[,"bmi"]
-depvar <- dat[,"charges"]
+```
+
+And then to facilitates the analysis let's just save those two parameters 
+(from the dataframe `dat`) into two new vectors:
+
+```{r getvars}
+indvar <- dat[,par]
+depvar <- dat[,res]
 ```
 
 Now with those data, let's do the linear regression.
