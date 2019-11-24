@@ -1,49 +1,74 @@
 baseurl = "/"
 languageCode = "en-us"
 title = "Le Cahier"
-theme = "ezhil"
+theme = "engimo"
 googleAnalytics = "UA-146801316-1"
 disqusShortname = "le-cahier-dahmad"
 ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
+copyright = ""
+pygmentsstyle = "solarized-dark"
+pygmentscodefences = true
+pygmentscodefencesguesssyntax = true
 
-paginate = 1
+#paginate = 1
+
+[params.info]
+title404 = "Nothing's here!"
+
+[params.assets]
+favicon = "favicon.ico"
+customCSS = ["css/custom.css"]
+customJS = ["js/custom.js"]
+gopher = "" # used in 404 template ( Generator: https://gopherize.me )
+
+[params.copyright]
+prefix = ""
+holder = "Ahmad Alkadri"
+startYear = "2019"
+suffix = ""
 
 [permalinks]
-    post = "/:year/:month/:day/:slug/"
+page = "/:slug/"
 
 [params]
-    description = "A website built through Hugo and blogdown."
-    subtitle = "Notes by Ahmad"
-    # options for highlight.js (version, additional languages, and theme)
-    highlightjsVersion = "9.12.0"
-    highlightjsCDN = "//cdnjs.cloudflare.com/ajax/libs"
-    highlightjsLang = ["r", "yaml"]
-    highlightjsTheme = "github"
-    # Content types which are excludes Disqus comments.
-    disableDisqusTypes = ["page"]
-    # Dark mode
-    mode = "auto"
+	subtitle = "Notes regarding travel, life and codes by Ahmad"
+	disableDisqusTypes = ["page"]
+	featherIconsCDN = true
+	mode = "auto" # "dark", "auto", "light"
+	# customCSS = "css/custom.css"  # Custom CSS applied to default styles.
+	# customDarkCSS = "css/custom-dark.css"  # Custom styles applied to dark mode css.
+	# customJS = ["js/custom.js", "js/custom1.js"]  # Custom JS scripts.
 
-    MathJaxCDN = "//cdnjs.cloudflare.com/ajax/libs"
-    MathJaxVersion = "2.7.5"
+[params.settings]
+# date & time format: https://golang.org/pkg/time/
+dateFormat = "2006, Jan 02"
+listDateFormat = "2006, Jan 02"
+archiveDateFormat = "Jan 02"
+hideEntryNavigation = ["page"] # boolean / array of sections
+hideEntryMeta = ["page"] # boolean / array of sections
+showReadingTime = true
+showLastmod = true
+taxonomyCloudShuffle = false
+#accentColor = "#44ccff"
+hideMainMenu = false
+rtl = false
 
-    # path to the favicon, under "static"
-    favicon = "favicon.ico"
+[params.sidebar]
+enable = true
 
-    [params.logo]
-    url = "logo.png"
-    width = 50
-    height = 50
-    alt = "Logo"
+[params.widgets]
+header = ["breadcrumbs"]
+#homepage = ["recent_posts"]
+#sidebar = ["about","search","sidebar_menu"]
+footer = ["social_menu"]
 
-# Main menu which appears below site header.
 [[menu.main]]
 name = "Home"
 url = "/"
 weight = 1
 
 [[menu.main]]
-name = "Blog"
+name = "Posts"
 url = "/posts"
 weight = 2
 
@@ -57,16 +82,13 @@ name = "Tags"
 url = "/tags"
 weight = 4
 
-[[params.social]]
-name = "Github"
-icon = "github"
-url = "https://github.com/ahmad-alkadri"
+[params.social]
+email = "ahmad.alkadri@outlook.com"
+github = "ahmad-alkadri"
+linkedin = "alkadri"
 
-[[params.social]]
-name = "LinkedIn"
-icon = "linkedin"
-url = "https://linkedin.com/in/alkadri"
+[params.comments]
+enable = true
 
-# Enable tags.
 [taxonomies]
    tag = "tags"

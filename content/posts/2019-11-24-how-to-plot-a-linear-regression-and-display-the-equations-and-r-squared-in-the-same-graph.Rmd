@@ -1,0 +1,32 @@
+---
+title: How to plot a linear regression in R
+author: Ahmad Alkadri
+date: '2019-11-24'
+slug: how-to-plot-a-linear-regression-and-display-the-equations-and-r-squared-in-the-same-graph
+categories:
+  - post
+  - R
+tags:
+  - R
+  - script
+  - visualization
+---
+
+A more compatible title perhaps would be: 
+**How to plot an Excel-like linear regression in R**. 
+
+This is a half-note, half-tutorial that I wrote partly because 
+lately I keep forgetting it, something that I'm actually a bit 
+ashamed, although it seems to be quite normal.
+
+I suppose a background is needed.
+
+I first started to use R because I'm interested in its 
+visualization capability. In the lab I was working at the time 
+(I was an intern then).
+
+```{r}
+x = seq(0,10,length.out = 10)
+y = seq(0,20,length.out = 10)
+plot(x,y)
+```
