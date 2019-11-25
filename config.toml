@@ -15,6 +15,11 @@ pygmentscodefencesguesssyntax = true
 [params.info]
 title404 = "Nothing's here!"
 
+[sitemap]
+  changefreq = "monthly"
+  filename = "sitemap.xml"
+  priority = 0.5
+
 [params.assets]
 favicon = "favicon.ico"
 customCSS = ["css/custom.css"]
