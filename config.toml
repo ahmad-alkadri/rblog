@@ -26,9 +26,12 @@ prefix = ""
 holder = "Ahmad Alkadri"
 startYear = "2019"
 suffix = ""
+enableRobotsTXT = true
+canonifyURLs = true
 
 [permalinks]
-page = "/:slug/"
+  page = "/:slug/"
+  post = "/blog/:title/"
 
 [params]
 	subtitle = "Notes regarding travel, life and codes by Ahmad"
