@@ -1,0 +1,253 @@
+---
+title: 'Classification using SVM: Beginner''s Tale in R '
+author: Ahmad Alkadri
+date: '2019-12-02'
+slug: classification-using-svm-beginner-s-tale-in-r
+categories:
+  - post
+  - R
+  - tutorial
+tags:
+  - R
+  - tutorial
+  - machine-learning
+  - SVM
+  - classification
+authors: []
+---
+
+This is literally the first time I've ever tried using SVM. 
+I'm not so big on all this "Machine Learning" thing; most of the time 
+I use `R` merely for data analysis, statistics, and visualizations. 
+
+But after careful reading it seems that SVM could be really 
+useful for quick data classification, especially for predicting 
+if the result is going to be binary (Yes or No, A or B, 1 or 0, etc.). 
+So here I am diving directly inside!
+
+# Pre-process
+
+Most of the steps that I use here are based on 
+[this page](https://www.geeksforgeeks.org/classifying-data-using-support-vector-machinessvms-in-r/). 
+The author of the aforementioned page has done a great job in my opinion 
+in explaining what SVM is and how they could be applied practically. 
+I recommend you to read it if you want to dive head first directly to this subject.
+
+So to start, we have this data called `social.csv`, available for download 
+[here](https://media.geeksforgeeks.org/wp-content/uploads/social.csv), 
+which we will analyze. Firstly let's just import this data to our workspace:
+```{r importdat}
+dat <- read.csv("https://media.geeksforgeeks.org/wp-content/uploads/social.csv")
+```
+
+Because `dat` is a dataframe, let's just first visualize its content:
+```{r message=FALSE, warning=FALSE}
+require(tidyverse)
+require(kableExtra)
+dat %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>%
+  scroll_box(width = "100%", height = "250px")
+```
+
+Here we have a data on individuals' age, estimated salary, gender, and 
+whether or not they purchase insurances: 1 is for **yes** and 0 for **no**. 
+
+**Our objective here** would be to predict, based on someone's gender, age, and 
+estimated salary, whether or not they would have or purchase an insurance.
+
+So to start with, let's load the necessary packages: 
+```{r loadpkgs, message=FALSE, warning=FALSE}
+require(caret)
+require(e1071)
+require(reshape2)
+```
+where `caret` is for easing the ML workflow, particularly 
+here for separating the data into two parts: one part (80%) 
+for training the model and the other part (20%) for testing 
+the model afterwards; `e1071` is the package containing the SVM 
+functions, and `reshape2` for reshaping the dataframe.
+
+Next, seeing the data `dat` again, we know that the variable `User.ID` 
+will affect nothing on the outcome, so let's remove it:
+```{r}
+dat_n <- dat[,-c(1)]
+head(dat_n) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
+Next, let's make the `Purchased` column into `factor` with two levels in `R`. 
+To do this, we simply need to apply the `factor` function:
+```{r putobj}
+dat_n$Purchased <- factor(dat_n$Purchased, levels = c(0, 1))
+```
+
+Now it's time for `caret` to do its job. We split the data into 
+`train.data` and `test.data`:
+```{r datasplit}
+set.seed(123)
+training.samples <- dat_n$Purchased %>%
+    createDataPartition(p = 0.8, list = FALSE)
+train.data  <- dat_n[training.samples,]
+test.data  <- dat_n[-training.samples,]
+```
+and that concludes the pre-process. Let's train.
+
+----
+
+# Training the Model
+
+## Linear kernel
+The formula for SVM model here is embedded in the 
+`e1071` package. The parameters that we use 
+(`C-classification` and `linear`) are the default ones, 
+although we can use others if we want (and we will try it 
+later in this blog). 
+
+So let's start by making this linear-classifier:
+```{r svmfit.lin}
+class.lin <- svm(formula = Purchased ~ factor(Gender)*Age*EstimatedSalary, 
+                 data = train.data, 
+                 type = 'C-classification', 
+                 kernel = 'linear') 
+```
+
+And then immediately, let's test it on the `test.data`:
+```{r predict.lin}
+res_pred.lin <- predict(class.lin, newdata = test.data) 
+```
+
+To check the results, we use the confusion matrix function, 
+embedded in `caret` package, and `ggplot2` for visualization:
+```{r confmatrix.lin, fig.width=6, fig.height=6}
+# Making the Confusion Matrix 
+cm.lin <- confusionMatrix(test.data$Purchased, res_pred.lin)
+cm_tb.lin <- melt(cm.lin$table)
+ggplot(cm_tb.lin, aes(Prediction, Reference)) + 
+  geom_tile(aes(fill=value))+
+  geom_text(aes(label=value), size=7)+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white",
+                       limit = c(min(cm_tb.lin$value),max(cm_tb.lin)))+
+  scale_x_continuous(breaks=c(0,1), 
+                   labels=c(0,1))+
+  scale_y_continuous(breaks=c(0,1), 
+                   labels=c(0,1))+
+  xlab("Predicted results")+ylab("Data")
+```
+
+What does this mean? It means that, in the `test.data`, 
+among the 51 people who doesn't have insurance (`0`), we successfully 
+predicted 46 of them and for those who have (`28`), 22 have been 
+successfully predicted.
+
+In average, the success rate of this prediction is:
+```{r rate.lin}
+rate_0 = cm.lin$table[1,1]/sum(cm.lin$table[1,])*100 # in percent
+rate_1 = cm.lin$table[2,2]/sum(cm.lin$table[2,])*100 # in percent
+print(paste("Res = 1 is ",round(rate_1,2),"% and for Res = 0 is ",round(rate_0,2),"%.", sep=""))
+```
+
+Quite good already. But perhaps we can do better? Let's 
+redo these analysis but with kernel type `polynomial`.
+
+## Polynomial kernel
+
+To start, let's make this polynomial-classifier:
+```{r svmfit.pol}
+class.pol <- svm(formula = Purchased ~ factor(Gender)*Age*EstimatedSalary, 
+                 data = train.data, 
+                 type = 'C-classification', 
+                 kernel = 'polynomial') 
+```
+
+And then immediately, let's test it on the `test.data`:
+```{r predict.pol}
+res_pred.pol <- predict(class.pol, newdata = test.data) 
+```
+
+Visualize the results:
+```{r confmatrix.pol, fig.width=6, fig.height=6}
+# Making the Confusion Matrix 
+cm.pol <- confusionMatrix(test.data$Purchased, res_pred.pol)
+cm_tb.pol <- melt(cm.pol$table)
+ggplot(cm_tb.pol, aes(Prediction, Reference)) + 
+  geom_tile(aes(fill=value))+
+  geom_text(aes(label=value), size=7)+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white",
+                       limit = c(min(cm_tb.pol$value),max(cm_tb.pol)))+
+  scale_x_continuous(breaks=c(0,1), 
+                   labels=c(0,1))+
+  scale_y_continuous(breaks=c(0,1), 
+                   labels=c(0,1))+
+  xlab("Predicted results")+ylab("Data")
+```
+
+And calculate the success rate of this classifier:
+```{r rate.pol}
+rate_0.pol = cm.pol$table[1,1]/sum(cm.pol$table[1,])*100 # in percent
+rate_1.pol = cm.pol$table[2,2]/sum(cm.pol$table[2,])*100 # in percent
+print(paste("Res = 1 is ",round(rate_1.pol,2),"% and for Res = 0 is ",round(rate_0.pol,2),"%.", sep=""))
+```
+
+Quite an increase, particularly for `Res = 1`. For the last test, 
+let's do one but with kernel type exponential or `radial basis`.
+
+## Exponential kernel
+
+To start again, let's make the classifier:
+```{r svmfit.exp}
+class.exp <- svm(formula = Purchased ~ factor(Gender)*Age*EstimatedSalary, 
+                 data = train.data, 
+                 type = 'C-classification', 
+                 kernel = 'radial') 
+```
+
+And then immediately, let's test it on the `test.data`:
+```{r predict.exp}
+res_pred.exp <- predict(class.exp, newdata = test.data) 
+```
+
+Visualize the results:
+```{r confmatrix.exp, fig.width=6, fig.height=6}
+# Making the Confusion Matrix 
+cm.exp <- confusionMatrix(test.data$Purchased, res_pred.exp)
+cm_tb.exp <- melt(cm.exp$table)
+ggplot(cm_tb.exp, aes(Prediction, Reference)) + 
+  geom_tile(aes(fill=value))+
+  geom_text(aes(label=value), size=7)+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white",
+                       limit = c(min(cm_tb.exp$value),max(cm_tb.exp)))+
+  scale_x_continuous(breaks=c(0,1), 
+                   labels=c(0,1))+
+  scale_y_continuous(breaks=c(0,1), 
+                   labels=c(0,1))+
+  xlab("Predicted results")+ylab("Data")
+```
+
+And calculate the success rate of this classifier:
+```{r rate.exp}
+rate_0.exp = cm.exp$table[1,1]/sum(cm.exp$table[1,])*100 # in percent
+rate_1.exp = cm.exp$table[2,2]/sum(cm.exp$table[2,])*100 # in percent
+print(paste("Res = 1 is ",round(rate_1.exp,2),"% and for Res = 0 is ",round(rate_0.exp,2),"%.", sep=""))
+```
+
+Apparently, it increases the accuracy for `Res = 1` but decreases it for `Res = 0`. 
+The results for both are becoming more balanced (both are close to 90% now) 
+but with the price of lowering the accuracy for one of them.
+
+----
+
+# Closing
+
+In this quick and simple dive into SVM, we have tried to 
+predict whether or not someone's going to have insurance based 
+on their age, gender, and salary. Results show an increase between 
+the `linear` and `polynomial` kernel, but not so for the `radial` one. 
+If we want to get a more balanced result here, using `radial` is definitely 
+the way to go.
+
+Next step? Visualizing this, definitely. I'll try to make it ASAP 
+on this blog too, and perhaps comparing this method with others (`glm` anyone?)
+
+Thanks for reading!
