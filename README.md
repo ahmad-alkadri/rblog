@@ -1,3 +1,5 @@
+# README
+
 This is a simple blog of mine built using Blogdown, 
 an R package utilizing the Hugo static site generator engine. 
 The current address of this blog is [ahmad-alkadri.github.io](https://ahmad-alkadri.github.io). 
