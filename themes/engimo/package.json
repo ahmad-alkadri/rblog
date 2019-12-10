@@ -38,6 +38,7 @@
     "fuse.js": "^3.2.1",
     "lunr": "^2.3.0",
     "normalize.css": "^8.0.0",
+    "serialize-javascript": "^2.1.2",
     "twemoji": "^2.5.1"
   }
 }
