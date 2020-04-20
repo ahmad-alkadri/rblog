@@ -1,0 +1,25 @@
+---
+title: Dusting Off
+author: Ahmad Alkadri
+date: '2020-04-20'
+slug: dusting-off
+categories:
+  - post
+tags:
+  - perso
+---
+
+To say that a lot of things have changed these past few months 
+would be quite an understatement. For me, personally, it's 
+been quite difficult, challenging, and for sure, many other changes 
+would happen in the coming weeks. What I can say for now is these:
++ my contract with Henri SELMER Paris has ended
++ I've gotten myself a new, permanent contract with another company
++ will update you more about it in the coming weeks, but for now I can say, quite comfortably, thay--*boy*--I made a good choice to learn Python and Cast3m.
+
+That's it. Finally, please enjoy this ridiculuously cool 
+advert that just popped up on my Instagram's feed:
+
+```{r, eval=TRUE}
+blogdown::shortcode("youtube", "w90PUm6iVyg")
+```
